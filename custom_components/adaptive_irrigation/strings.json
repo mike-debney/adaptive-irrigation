@@ -37,7 +37,12 @@
           "name": "Zone Name",
           "sprinkler_entity": "Sprinkler/Valve Entity",
           "precipitation_rate": "Precipitation Rate (mm/hour)",
-          "crop_coefficient": "Crop Coefficient (Kc)"
+          "crop_coefficient": "Crop Coefficient (Kc)",
+          "max_runtime": "Maximum Runtime (seconds)",
+          "min_runtime": "Minimum Runtime (seconds)",
+          "minimum_interval": "Minimum Interval (seconds)",
+          "max_balance": "Maximum Balance (mm)",
+          "min_balance": "Minimum Balance (mm)"
         }
       }
     },
@@ -97,7 +102,12 @@
           "name": "Zone Name",
           "sprinkler_entity": "Sprinkler/Valve Entity",
           "precipitation_rate": "Precipitation Rate (mm/hour)",
-          "crop_coefficient": "Crop Coefficient (Kc)"
+          "crop_coefficient": "Crop Coefficient (Kc)",
+          "max_runtime": "Maximum Runtime (seconds)",
+          "min_runtime": "Minimum Runtime (seconds)",
+          "minimum_interval": "Minimum Interval (seconds)",
+          "max_balance": "Maximum Balance (mm)",
+          "min_balance": "Minimum Balance (mm)"
         }
       },
       "select_zone_to_edit": {
@@ -115,6 +125,11 @@
           "sprinkler_entity": "Sprinkler/Valve Entity",
           "precipitation_rate": "Precipitation Rate (mm/hour)",
           "crop_coefficient": "Crop Coefficient (Kc)",
+          "max_runtime": "Maximum Runtime (seconds)",
+          "min_runtime": "Minimum Runtime (seconds)",
+          "minimum_interval": "Minimum Interval (seconds)",
+          "max_balance": "Maximum Balance (mm)",
+          "min_balance": "Minimum Balance (mm)",
           "delete_zone": "Delete this zone"
         }
       }

@@ -23,6 +23,11 @@ class ZoneConfig:
     sprinkler_entity: str
     precipitation_rate: float  # mm/hour
     crop_coefficient: float = 1.0  # Kc for ET adjustment
+    max_runtime: int = 3600  # seconds
+    min_runtime: int = 60  # seconds
+    minimum_interval: int = 3600  # seconds - minimum time between irrigation cycles
+    max_balance: float = 5.0  # mm - don't run if balance is above this
+    min_balance: float = -20.0  # mm - don't run if balance is below this (too dry for effective irrigation)
 
 
 class Config:

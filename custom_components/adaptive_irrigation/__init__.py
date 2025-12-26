@@ -25,7 +25,7 @@ from .state import State, WeatherState, ZoneState
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.NUMBER, Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SENSOR]
 
 # Store per-entry instances keyed by entry_id
 CONFIGS: dict[str, Config] = {}
@@ -185,6 +185,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             # Add water to balance (moves toward excess/positive)
                             zone_state.soil_moisture_balance += water_added
                             
+                            # Record when the valve was turned off
+                            zone_state.sprinkler_off_time = datetime.now()
+                            
                             _LOGGER.info(
                                 "Sprinkler off for zone %s. Runtime: %.2f min, Water added: %.2f mm",
                                 zone_config.name,
@@ -193,6 +196,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             )
                             
                             update_zone_number(hass, entry.entry_id, zone_id, zone_state.soil_moisture_balance)
+                            
+                            # Update next runtime sensor since minimum_interval constraint now applies
+                            update_next_runtime_sensor(hass, entry.entry_id, zone_id)
+                            
                             zone_state.sprinkler_on_time = None
 
         # Subscribe to state changes
@@ -319,6 +326,11 @@ def parse_config(entry: ConfigEntry, config: Config) -> None:
         zone_config.sprinkler_entity = zone_data.get("sprinkler_entity")
         zone_config.precipitation_rate = zone_data.get("precipitation_rate", 10.0)
         zone_config.crop_coefficient = zone_data.get("crop_coefficient", 1.0)
+        zone_config.max_runtime = zone_data.get("max_runtime", 3600)
+        zone_config.min_runtime = zone_data.get("min_runtime", 60)
+        zone_config.minimum_interval = zone_data.get("minimum_interval", 3600)
+        zone_config.max_balance = zone_data.get("max_balance", 50.0)
+        zone_config.min_balance = zone_data.get("min_balance", -50.0)
         config.zones[zone_id] = zone_config
 
 
@@ -572,6 +584,9 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
         
         _LOGGER.debug("Calculated ET0: %.2f mm/day", et_mm)
         
+        # Update the reference ET sensor
+        update_et0_sensor(hass, entry_id, et_mm)
+        
         # Apply ET to all zones with crop coefficient
         for zone_id, zone_config in config.zones.items():
             zone_state = state.zones[zone_id]
@@ -599,6 +614,19 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
         _LOGGER.error("Error calculating ET: %s", e)
 
 
+def update_et0_sensor(hass: HomeAssistant, entry_id: str, et0_value: float) -> None:
+    """Update the reference ET sensor."""
+    if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
+        return
+    
+    entities = hass.data[DOMAIN][entry_id].get("entities", {})
+    et0_sensor_key = "et0_sensor"
+    
+    if et0_sensor_key in entities:
+        et0_sensor = entities[et0_sensor_key]
+        et0_sensor.update_et0(et0_value)
+
+
 def update_zone_number(hass: HomeAssistant, entry_id: str, zone_id: str, balance: float) -> None:
     """Update the soil moisture balance number for a zone."""
     if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
@@ -610,3 +638,17 @@ def update_zone_number(hass: HomeAssistant, entry_id: str, zone_id: str, balance
     if number_key in entities:
         number = entities[number_key]
         number.update_value(balance)
+
+
+def update_next_runtime_sensor(hass: HomeAssistant, entry_id: str, zone_id: str) -> None:
+    """Update the next runtime sensor for a zone."""
+    if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
+        return
+    
+    entities = hass.data[DOMAIN][entry_id].get("entities", {})
+    next_runtime_key = f"next_runtime_{zone_id}"
+    
+    if next_runtime_key in entities:
+        next_runtime_sensor = entities[next_runtime_key]
+        next_runtime_sensor.update_next_runtime()
+

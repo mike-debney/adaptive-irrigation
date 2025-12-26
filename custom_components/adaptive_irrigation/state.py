@@ -12,6 +12,7 @@ class ZoneState:
     last_et_calculation: datetime | None = None
     last_midnight_update: datetime | None = None
     sprinkler_on_time: datetime | None = None
+    sprinkler_off_time: datetime | None = None  # Track when valve was last turned off
     total_sprinkler_runtime_today: float = 0.0  # seconds
 
 

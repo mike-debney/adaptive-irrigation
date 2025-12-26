@@ -8,6 +8,7 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, get_device_info
@@ -99,8 +100,13 @@ class SoilMoistureBalanceNumber(RestoreEntity, NumberEntity):
                 state.zones[self._zone_id].soil_moisture_balance = self._attr_native_value
                 _LOGGER.debug("Synced integration state with restored balance: %.2f mm", self._attr_native_value)
         
-        # Update the runtime sensor with the restored balance
-        self._update_runtime_sensor(self._attr_native_value)
+        # Schedule update of sensors after a short delay to ensure all entities are loaded
+        @callback
+        def delayed_update(_now):
+            """Update sensors after delay."""
+            self._update_runtime_sensor(self._attr_native_value)
+        
+        async_call_later(self.hass, 1, delayed_update)
 
     @callback
     def update_value(self, balance: float) -> None:
@@ -131,11 +137,24 @@ class SoilMoistureBalanceNumber(RestoreEntity, NumberEntity):
         self._update_runtime_sensor(value)
     
     def _update_runtime_sensor(self, balance: float) -> None:
-        """Update the corresponding runtime sensor."""
+        """Update the corresponding runtime sensors and binary sensor."""
         if DOMAIN in self.hass.data and self._entry_id in self.hass.data[DOMAIN]:
             entities = self.hass.data[DOMAIN][self._entry_id].get("entities", {})
-            runtime_key = f"runtime_{self._zone_id}"
             
+            # Update required runtime sensor
+            runtime_key = f"runtime_{self._zone_id}"
             if runtime_key in entities:
                 runtime_sensor = entities[runtime_key]
                 runtime_sensor.update_from_balance(balance)
+            
+            # Update can run binary sensor
+            can_run_key = f"can_run_{self._zone_id}"
+            if can_run_key in entities:
+                can_run_sensor = entities[can_run_key]
+                can_run_sensor.update_can_run()
+            
+            # Update next runtime sensor
+            next_runtime_key = f"next_runtime_{self._zone_id}"
+            if next_runtime_key in entities:
+                next_runtime_sensor = entities[next_runtime_key]
+                next_runtime_sensor.update_next_runtime()
