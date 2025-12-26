@@ -179,7 +179,7 @@ class AdaptiveIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required("name"): selector.TextSelector(),
                 vol.Required("sprinkler_entity"): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["switch", "input_boolean", "valve"]
+                        domain=["switch", "input_boolean", "valve", "binary_sensor"]
                     )
                 ),
                 vol.Required(
@@ -416,7 +416,7 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                 vol.Required("name"): selector.TextSelector(),
                 vol.Required("sprinkler_entity"): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["switch", "input_boolean", "valve"]
+                        domain=["switch", "input_boolean", "valve", "binary_sensor"]
                     )
                 ),
                 vol.Required(
