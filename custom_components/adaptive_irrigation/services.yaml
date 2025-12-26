@@ -1,0 +1,11 @@
+calculate_et:
+  name: Calculate Evapotranspiration
+  description: Force immediate calculation and application of evapotranspiration for all zones.
+  fields:
+    entry_id:
+      name: Config Entry ID
+      description: The config entry ID to calculate ET for. If not provided, calculates for all entries.
+      required: false
+      example: "01234567890abcdef"
+      selector:
+        text:

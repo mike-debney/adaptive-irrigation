@@ -1,0 +1,123 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weather Sensors",
+        "description": "Configure weather station sensors for evapotranspiration calculation",
+        "data": {
+          "name": "Integration Name",
+          "temperature_entity": "Temperature Sensor (°C or °F)",
+          "humidity_entity": "Relative Humidity Sensor (%)",
+          "precipitation_entity": "Precipitation Sensor (mm)",
+          "wind_speed_entity": "Wind Speed Sensor (m/s) (Optional)",
+          "solar_radiation_entity": "Solar Radiation Sensor (W/m²) (Optional)",
+          "pressure_entity": "Pressure Sensor (kPa) (Optional)"
+        }
+      },
+      "location": {
+        "title": "Location Settings",
+        "description": "Configure location for evapotranspiration calculations. ET method is automatically selected based on available sensors.",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "elevation": "Elevation (meters)"
+        }
+      },
+      "zones": {
+        "title": "Irrigation Zones",
+        "description": "How many irrigation zones do you want to configure?",
+        "data": {
+          "num_zones": "Number of Zones"
+        }
+      },
+      "zone_config": {
+        "title": "Configure Zone {zone_number} of {total_zones}",
+        "description": "Configure irrigation zone settings",
+        "data": {
+          "name": "Zone Name",
+          "sprinkler_entity": "Sprinkler/Valve Entity",
+          "precipitation_rate": "Precipitation Rate (mm/hour)",
+          "crop_coefficient": "Crop Coefficient (Kc)"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "Integration with this name already exists",
+      "unknown": "An unexpected error occurred. Check the logs for details."
+    },
+    "abort": {
+      "already_configured": "Integration with this name already exists"
+    }
+  },
+  "options": {
+    "step": {
+      "menu": {
+        "title": "Adaptive Irrigation Options",
+        "menu_options": {
+          "weather_sensors": "Weather Sensors",
+          "location": "Location & ET Settings",
+          "manage_zones": "Manage Zones"
+        }
+      },
+      "weather_sensors": {
+        "title": "Weather Sensors",
+        "description": "Configure weather station sensors",
+        "data": {
+          "temperature_entity": "Temperature Sensor (°C or °F)",
+          "humidity_entity": "Relative Humidity Sensor (%)",
+          "precipitation_entity": "Precipitation Sensor (mm)",
+          "wind_speed_entity": "Wind Speed Sensor (m/s) (Optional)",
+          "solar_radiation_entity": "Solar Radiation Sensor (W/m²) (Optional)",
+          "pressure_entity": "Pressure Sensor (kPa) (Optional)"
+        }
+      },
+      "location": {
+        "title": "Location & ET Settings",
+        "description": "Configure location and evapotranspiration settings",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "elevation": "Elevation (meters)",
+          "et_method": "ET Calculation Method",
+          "update_interval_seconds": "Update Interval (seconds)"
+        }
+      },
+      "manage_zones": {
+        "title": "Manage Zones",
+        "menu_options": {
+          "add_zone": "Add New Zone",
+          "select_zone_to_edit": "Edit/Delete Zone",
+          "menu": "Back to Main Menu"
+        }
+      },
+      "add_zone": {
+        "title": "Add Irrigation Zone",
+        "description": "Configure a new irrigation zone",
+        "data": {
+          "name": "Zone Name",
+          "sprinkler_entity": "Sprinkler/Valve Entity",
+          "precipitation_rate": "Precipitation Rate (mm/hour)",
+          "crop_coefficient": "Crop Coefficient (Kc)"
+        }
+      },
+      "select_zone_to_edit": {
+        "title": "Select Zone to Edit",
+        "description": "Choose which zone to edit or delete",
+        "data": {
+          "zone_to_edit": "Zone"
+        }
+      },
+      "edit_zone": {
+        "title": "Edit Zone: {zone_name}",
+        "description": "Modify or delete this zone",
+        "data": {
+          "name": "Zone Name",
+          "sprinkler_entity": "Sprinkler/Valve Entity",
+          "precipitation_rate": "Precipitation Rate (mm/hour)",
+          "crop_coefficient": "Crop Coefficient (Kc)",
+          "delete_zone": "Delete this zone"
+        }
+      }
+    }
+  }
+}
