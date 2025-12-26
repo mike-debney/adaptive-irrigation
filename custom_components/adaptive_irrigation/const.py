@@ -3,7 +3,7 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
 
-DOMAIN = "adaptive-irrigation"
+DOMAIN = "adaptive_irrigation"
 
 # ET calculation methods
 ET_METHOD_PENMAN_MONTEITH = "penman_monteith"

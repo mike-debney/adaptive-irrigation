@@ -22,12 +22,24 @@ It automatically:
 ## Inputs (Required Configuration)
 
 ### Weather Station Sensors
-- **Temperature** (°C or °F) - Required for all ET calculations
+- **Temperature** (°C) - Required for all ET calculations
+  - Valid range: -50°C to 60°C
 - **Relative Humidity** (%) - Required for all ET calculations
+  - Valid range: 0% to 100%
 - **Precipitation** (mm) - Cumulative rainfall total
-- **Wind Speed** (m/s) - Optional, enables Penman-Monteith method
+  - Valid range: 0mm to 500mm
+  - Rainfall increases >200mm/day are rejected as sensor errors
+- **Wind Speed** (km/h) - Optional, enables Penman-Monteith method
+  - Valid range: 0 km/h to 200 km/h
 - **Solar Radiation** (W/m²) - Optional, enables Priestley-Taylor or Penman-Monteith
-- **Pressure** (kPa) - Optional, improves accuracy
+  - Valid range: 0 W/m² to 1500 W/m²
+- **Pressure** (hPa) - Optional, improves accuracy
+  - Valid range: 800 hPa to 1100 hPa
+
+**Sensor Data Validation:**
+- Invalid sensor readings outside the ranges above are automatically filtered out and logged as warnings
+- Both real-time updates and historical database queries validate all sensor data
+- This prevents obviously erroneous values (sensor glitches, connectivity issues) from corrupting ET calculations
 
 **ET Method Auto-Selection:**
 - Wind + Solar → **Penman-Monteith** (most accurate)
@@ -69,7 +81,7 @@ For each configured zone:
 
 - **Evapotranspiration Calculation**: Uses the [pyet](https://github.com/pyet-org/pyet) library to calculate daily water loss through evapotranspiration
 - **Multiple ET Methods**: Auto-selects best method (Penman-Monteith, Priestley-Taylor, or Hargreaves) based on available sensors
-- **Daily Weather Averaging**: Samples weather sensors every 15 minutes and uses daily averages for accurate ET calculations
+- **Historical Data Analysis**: Queries Home Assistant's database for previous day's weather data to calculate accurate daily averages
 - **Real-time Rainfall Tracking**: Automatically adds precipitation to soil moisture balance as it occurs
 - **Automatic Irrigation Tracking**: Monitors sprinkler runtime and calculates water added based on precipitation rate
 - **Multi-Zone Support**: Configure unlimited irrigation zones with individual settings
@@ -95,11 +107,12 @@ The integration maintains a soil moisture balance (in mm) for each irrigation zo
 
 ### ET Calculation
 
-The integration uses **daily averaged weather data** to calculate reference evapotranspiration (ET₀):
+The integration uses **historical weather data from Home Assistant's database** to calculate reference evapotranspiration (ET₀):
 
-- Weather sensors are sampled **every 15 minutes** throughout the day
-- At midnight, the daily averages are calculated and used for ET computation
-- This provides more accurate ET values than using instantaneous readings
+- At midnight, the integration queries the recorder database for all sensor states from the previous 24 hours
+- Daily averages are calculated from all recorded state changes
+- These averages are used for ET computation using the pyet library
+- This provides highly accurate ET values based on actual recorded data, not sampled snapshots
 - **Temperature** and **Humidity** are required for all methods
 - **Wind Speed**, **Solar Radiation**, and **Pressure** improve accuracy for Penman-Monteith
 - Each zone applies a **crop coefficient (Kc)** to adjust ET₀ for specific plant types
@@ -137,7 +150,7 @@ Configure your local weather station entities:
 - **Precipitation Sensor** (Required): Cumulative precipitation (the integration tracks increases)
 - **Wind Speed Sensor** (Optional): Enables Penman-Monteith ET method
 - **Solar Radiation Sensor** (Optional): Enables Priestley-Taylor or Penman-Monteith methods
-- **Pressure Sensor** (Optional): Improves ET calculation accuracy
+- **Pressure Sensor** (Optional): Improves ET calculation accuracy (hPa)
 
 The integration automatically selects the best ET calculation method based on configured sensors.
 

@@ -1,5 +1,5 @@
 {
-  "domain": "adaptive-irrigation",
+  "domain": "adaptive_irrigation",
   "name": "Adaptive Irrigation",
   "codeowners": ["@mike-debney"],
   "config_flow": true,

@@ -6,12 +6,12 @@
         "description": "Configure weather station sensors for evapotranspiration calculation",
         "data": {
           "name": "Integration Name",
-          "temperature_entity": "Temperature Sensor (°C or °F)",
+          "temperature_entity": "Temperature Sensor (°C)",
           "humidity_entity": "Relative Humidity Sensor (%)",
           "precipitation_entity": "Precipitation Sensor (mm)",
-          "wind_speed_entity": "Wind Speed Sensor (m/s) (Optional)",
+          "wind_speed_entity": "Wind Speed Sensor (km/h) (Optional)",
           "solar_radiation_entity": "Solar Radiation Sensor (W/m²) (Optional)",
-          "pressure_entity": "Pressure Sensor (kPa) (Optional)"
+          "pressure_entity": "Pressure Sensor (hPa) (Optional)"
         }
       },
       "location": {
@@ -63,12 +63,12 @@
         "title": "Weather Sensors",
         "description": "Configure weather station sensors",
         "data": {
-          "temperature_entity": "Temperature Sensor (°C or °F)",
+          "temperature_entity": "Temperature Sensor (°C)",
           "humidity_entity": "Relative Humidity Sensor (%)",
           "precipitation_entity": "Precipitation Sensor (mm)",
-          "wind_speed_entity": "Wind Speed Sensor (m/s) (Optional)",
+          "wind_speed_entity": "Wind Speed Sensor (km/h) (Optional)",
           "solar_radiation_entity": "Solar Radiation Sensor (W/m²) (Optional)",
-          "pressure_entity": "Pressure Sensor (kPa) (Optional)"
+          "pressure_entity": "Pressure Sensor (hPa) (Optional)"
         }
       },
       "location": {

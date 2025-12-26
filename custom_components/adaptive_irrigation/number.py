@@ -8,6 +8,7 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, get_device_info
 
@@ -47,7 +48,7 @@ async def async_setup_entry(
     async_add_entities(numbers)
 
 
-class SoilMoistureBalanceNumber(NumberEntity):
+class SoilMoistureBalanceNumber(RestoreEntity, NumberEntity):
     """Number entity for soil moisture balance in a zone.
     
     Balance is measured in mm where:
@@ -72,6 +73,34 @@ class SoilMoistureBalanceNumber(NumberEntity):
         self._attr_unique_id = f"{entry.entry_id}_{zone_id}_soil_moisture_balance"
         self._attr_native_value = 0.0  # Default to optimal (0mm balance)
         self._attr_device_info = device_info
+    
+    async def async_added_to_hass(self) -> None:
+        """Run when entity is added to hass - restore state if available."""
+        await super().async_added_to_hass()
+        
+        # Try to restore previous state
+        last_state = await self.async_get_last_state()
+        
+        if last_state is not None and last_state.state not in ("unknown", "unavailable"):
+            try:
+                self._attr_native_value = float(last_state.state)
+                _LOGGER.info("Restored soil moisture balance for zone %s: %.2f mm", self._zone_id, self._attr_native_value)
+            except (ValueError, TypeError):
+                _LOGGER.warning("Could not restore balance for zone %s, starting at 0mm", self._zone_id)
+                self._attr_native_value = 0.0
+        else:
+            _LOGGER.info("No previous state for zone %s, starting at 0mm", self._zone_id)
+            self._attr_native_value = 0.0
+        
+        # Update the integration's state to match restored value
+        if DOMAIN in self.hass.data and self._entry_id in self.hass.data[DOMAIN]:
+            state = self.hass.data[DOMAIN][self._entry_id].get("state")
+            if state and self._zone_id in state.zones:
+                state.zones[self._zone_id].soil_moisture_balance = self._attr_native_value
+                _LOGGER.debug("Synced integration state with restored balance: %.2f mm", self._attr_native_value)
+        
+        # Update the runtime sensor with the restored balance
+        self._update_runtime_sensor(self._attr_native_value)
 
     @callback
     def update_value(self, balance: float) -> None:

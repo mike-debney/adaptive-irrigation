@@ -1,5 +1,5 @@
 {
   "name": "Adaptive Irrigation",
   "render_readme": true,
-  "domains": ["adaptive-irrigation"]
+  "domains": ["adaptive_irrigation"]
 }
