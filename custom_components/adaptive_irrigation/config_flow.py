@@ -73,24 +73,38 @@ class AdaptiveIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required("name", default="Adaptive Irrigation"): selector.TextSelector(),
+                vol.Required(
+                    "name", default="Adaptive Irrigation"
+                ): selector.TextSelector(),
                 vol.Required("temperature_entity"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "input_number"], multiple=False)
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number"], multiple=False
+                    )
                 ),
                 vol.Required("humidity_entity"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "input_number"], multiple=False)
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number"], multiple=False
+                    )
                 ),
                 vol.Required("precipitation_entity"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "input_number"], multiple=False)
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number"], multiple=False
+                    )
                 ),
                 vol.Optional("wind_speed_entity"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "input_number"], multiple=False)
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number"], multiple=False
+                    )
                 ),
                 vol.Optional("solar_radiation_entity"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "input_number"], multiple=False)
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number"], multiple=False
+                    )
                 ),
                 vol.Optional("pressure_entity"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "input_number"], multiple=False)
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number"], multiple=False
+                    )
                 ),
             }
         )
@@ -196,39 +210,41 @@ class AdaptiveIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
                         min=0, max=2, mode=selector.NumberSelectorMode.BOX
                     )
                 ),
-                vol.Optional(
-                    "max_runtime", default=3600
-                ): selector.NumberSelector(
+                vol.Optional("max_runtime", default=3600): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    "min_runtime", default=60
-                ): selector.NumberSelector(
+                vol.Optional("min_runtime", default=60): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    "minimum_interval", default=3600
-                ): selector.NumberSelector(
+                vol.Optional("minimum_interval", default=3600): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    "max_balance", default=5.0
-                ): selector.NumberSelector(
+                vol.Optional("max_balance", default=5.0): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-200, max=200, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="mm"
+                        min=-200,
+                        max=200,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm",
                     )
                 ),
-                vol.Optional(
-                    "min_balance", default=-20.0
-                ): selector.NumberSelector(
+                vol.Optional("min_balance", default=-20.0): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-200, max=200, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="mm"
+                        min=-200,
+                        max=200,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm",
                     )
                 ),
             }
@@ -363,9 +379,7 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                 ),
                 vol.Required(
                     "longitude",
-                    default=current_config.get(
-                        "longitude", self.hass.config.longitude
-                    ),
+                    default=current_config.get("longitude", self.hass.config.longitude),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=-180, max=180, mode=selector.NumberSelectorMode.BOX
@@ -433,39 +447,41 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                         min=0, max=2, mode=selector.NumberSelectorMode.BOX
                     )
                 ),
-                vol.Optional(
-                    "max_runtime", default=3600
-                ): selector.NumberSelector(
+                vol.Optional("max_runtime", default=3600): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    "min_runtime", default=60
-                ): selector.NumberSelector(
+                vol.Optional("min_runtime", default=60): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    "minimum_interval", default=3600
-                ): selector.NumberSelector(
+                vol.Optional("minimum_interval", default=3600): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    "max_balance", default=5.0
-                ): selector.NumberSelector(
+                vol.Optional("max_balance", default=5.0): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-200, max=200, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="mm"
+                        min=-200,
+                        max=200,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm",
                     )
                 ),
-                vol.Optional(
-                    "min_balance", default=-20.0
-                ): selector.NumberSelector(
+                vol.Optional("min_balance", default=-20.0): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-200, max=200, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="mm"
+                        min=-200,
+                        max=200,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm",
                     )
                 ),
             }
@@ -535,7 +551,7 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("sprinkler_entity"),
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["switch", "input_boolean", "valve"]
+                        domain=["switch", "input_boolean", "valve", "binary_sensor"]
                     )
                 ),
                 vol.Required(
@@ -548,7 +564,9 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                 ),
                 vol.Optional(
                     "crop_coefficient",
-                    default=current_zone.get("crop_coefficient", DEFAULT_CROP_COEFFICIENT),
+                    default=current_zone.get(
+                        "crop_coefficient", DEFAULT_CROP_COEFFICIENT
+                    ),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=0, max=2, mode=selector.NumberSelectorMode.BOX
@@ -559,7 +577,9 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("max_runtime", 3600),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
                 vol.Optional(
@@ -567,7 +587,9 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("min_runtime", 60),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
                 vol.Optional(
@@ -575,7 +597,9 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("minimum_interval", 3600),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="seconds",
                     )
                 ),
                 vol.Optional(
@@ -583,7 +607,10 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("max_balance", 5.0),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-200, max=200, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="mm"
+                        min=-200,
+                        max=200,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm",
                     )
                 ),
                 vol.Optional(
@@ -591,7 +618,10 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("min_balance", -20.0),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-200, max=200, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="mm"
+                        min=-200,
+                        max=200,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm",
                     )
                 ),
                 vol.Required("delete_zone", default=False): selector.BooleanSelector(),
