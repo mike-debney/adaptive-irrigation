@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, time as dt_time
 import logging
 
 import pandas as pd
+import pyet
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON, Platform
@@ -18,6 +19,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components import recorder
 from homeassistant.components.recorder import history
+from homeassistant.util import dt as dt_util
 
 from .config import Config, WeatherSensorConfig, ZoneConfig
 from .const import DOMAIN
@@ -55,17 +57,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Track entity state changes
         entity_ids = [
-            config.weather_sensors.temperature_entity,
-            config.weather_sensors.humidity_entity,
             config.weather_sensors.precipitation_entity,
         ]
-
-        if config.weather_sensors.wind_speed_entity:
-            entity_ids.append(config.weather_sensors.wind_speed_entity)
-        if config.weather_sensors.solar_radiation_entity:
-            entity_ids.append(config.weather_sensors.solar_radiation_entity)
-        if config.weather_sensors.pressure_entity:
-            entity_ids.append(config.weather_sensors.pressure_entity)
 
         # Add sprinkler entities
         for zone_config in config.zones.values():
@@ -83,93 +76,64 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if new_state is None:
                 return
 
-            # Weather sensor updates
-            if entity_id == config.weather_sensors.temperature_entity:
-                if new_state.state not in ("unknown", "unavailable"):
-                    value = float(new_state.state)
-                    if is_valid_temperature(value):
-                        state.weather.temperature = value
-                    else:
-                        _LOGGER.warning("Invalid temperature: %.2f °C (ignored)", value)
-            elif entity_id == config.weather_sensors.humidity_entity:
-                if new_state.state not in ("unknown", "unavailable"):
-                    value = float(new_state.state)
-                    if is_valid_humidity(value):
-                        state.weather.humidity = value
-                    else:
-                        _LOGGER.warning("Invalid humidity: %.2f%% (ignored)", value)
-            elif entity_id == config.weather_sensors.precipitation_entity:
+            # Weather sensor state changes
+            if entity_id == config.weather_sensors.precipitation_entity:
                 if new_state.state not in ("unknown", "unavailable"):
                     new_precip = float(new_state.state)
-                    
+
                     # Validate precipitation value
                     if not is_valid_precipitation(new_precip):
-                        _LOGGER.warning("Invalid precipitation value: %.2f mm (ignored)", new_precip)
+                        _LOGGER.warning(
+                            "Invalid precipitation value: %.2f mm (ignored)", new_precip
+                        )
                         return
-                    
+
                     old_precip = 0.0
                     if old_state and old_state.state not in ("unknown", "unavailable"):
                         old_precip = float(old_state.state)
-                    
+
                     # If precipitation increased, add to all zones
                     precip_diff = new_precip - old_precip
                     if precip_diff > 0:
                         # Additional sanity check on the difference
                         if precip_diff > 200.0:
-                            _LOGGER.warning("Excessive rainfall detected: %.2f mm (ignored, likely sensor error)", precip_diff)
+                            _LOGGER.warning(
+                                "Excessive rainfall detected: %.2f mm (ignored, likely sensor error)",
+                                precip_diff,
+                            )
                             return
-                        
+
                         _LOGGER.info("Rainfall detected: %.2f mm", precip_diff)
                         for zone_id, zone_state in state.zones.items():
                             # Add rainfall to balance (moves toward excess/positive)
                             zone_state.soil_moisture_balance += precip_diff
                             zone_state.last_rainfall = precip_diff
-                            update_zone_number(hass, entry.entry_id, zone_id, zone_state.soil_moisture_balance)
-                    
-                    state.weather.precipitation = new_precip
+                            update_zone_number(
+                                hass,
+                                entry.entry_id,
+                                zone_id,
+                                zone_state.soil_moisture_balance,
+                            )
 
-            elif (
-                config.weather_sensors.wind_speed_entity
-                and entity_id == config.weather_sensors.wind_speed_entity
-            ):
-                if new_state.state not in ("unknown", "unavailable"):
-                    value = float(new_state.state)
-                    if is_valid_wind_speed(value):
-                        state.weather.wind_speed = value
-                    else:
-                        _LOGGER.warning("Invalid wind speed: %.2f km/h (ignored)", value)
-            elif (
-                config.weather_sensors.solar_radiation_entity
-                and entity_id == config.weather_sensors.solar_radiation_entity
-            ):
-                if new_state.state not in ("unknown", "unavailable"):
-                    value = float(new_state.state)
-                    if is_valid_solar_radiation(value):
-                        state.weather.solar_radiation = value
-                    else:
-                        _LOGGER.warning("Invalid solar radiation: %.2f W/m² (ignored)", value)
-            elif (
-                config.weather_sensors.pressure_entity
-                and entity_id == config.weather_sensors.pressure_entity
-            ):
-                if new_state.state not in ("unknown", "unavailable"):
-                    value = float(new_state.state)
-                    if is_valid_pressure(value):
-                        state.weather.pressure = value
-                    else:
-                        _LOGGER.warning("Invalid pressure: %.2f hPa (ignored)", value)
+                    state.weather.precipitation = new_precip
 
             # Sprinkler state changes
             for zone_id, zone_config in config.zones.items():
                 if entity_id == zone_config.sprinkler_entity:
                     zone_state = state.zones[zone_id]
                     is_on = new_state.state == STATE_ON
-                    was_on = old_state and old_state.state == STATE_ON if old_state else False
+                    was_on = (
+                        old_state and old_state.state == STATE_ON
+                        if old_state
+                        else False
+                    )
 
                     if is_on and not was_on:
                         # Sprinkler turned on
                         zone_state.sprinkler_on_time = datetime.now()
-                        _LOGGER.info("Sprinkler turned on for zone %s", zone_config.name)
+                        _LOGGER.info(
+                            "Sprinkler turned on for zone %s", zone_config.name
+                        )
                     elif not is_on and was_on:
                         # Sprinkler turned off, calculate water added
                         if zone_state.sprinkler_on_time:
@@ -177,29 +141,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 datetime.now() - zone_state.sprinkler_on_time
                             ).total_seconds()
                             zone_state.total_sprinkler_runtime_today += runtime_seconds
-                            
+
                             # Calculate water added: (mm/hour) * (hours) = mm
                             runtime_hours = runtime_seconds / 3600
                             water_added = zone_config.precipitation_rate * runtime_hours
-                            
+
                             # Add water to balance (moves toward excess/positive)
                             zone_state.soil_moisture_balance += water_added
-                            
+
                             # Record when the valve was turned off
                             zone_state.sprinkler_off_time = datetime.now()
-                            
+
                             _LOGGER.info(
                                 "Sprinkler off for zone %s. Runtime: %.2f min, Water added: %.2f mm",
                                 zone_config.name,
                                 runtime_seconds / 60,
-                                water_added
+                                water_added,
                             )
-                            
-                            update_zone_number(hass, entry.entry_id, zone_id, zone_state.soil_moisture_balance)
-                            
+
+                            update_zone_number(
+                                hass,
+                                entry.entry_id,
+                                zone_id,
+                                zone_state.soil_moisture_balance,
+                            )
+
                             # Update next runtime sensor since minimum_interval constraint now applies
                             update_next_runtime_sensor(hass, entry.entry_id, zone_id)
-                            
+
                             zone_state.sprinkler_on_time = None
 
         # Subscribe to state changes
@@ -215,7 +184,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Track midnight for ET calculation
         entry.async_on_unload(
-            async_track_time_change(hass, midnight_et_calculation, hour=0, minute=0, second=0)
+            async_track_time_change(
+                hass, midnight_et_calculation, hour=0, minute=0, second=0
+            )
         )
 
         # Store entry in hass.data for platform access
@@ -239,7 +210,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if entry_id:
                 # Calculate for specific entry
                 if entry_id in CONFIGS:
-                    _LOGGER.info("Manual ET calculation triggered for entry %s", entry_id)
+                    _LOGGER.info(
+                        "Manual ET calculation triggered for entry %s", entry_id
+                    )
                     await calculate_and_apply_et(hass, entry_id)
                 else:
                     _LOGGER.error("Entry ID %s not found", entry_id)
@@ -253,7 +226,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         _LOGGER.info("Adaptive Irrigation setup completed successfully")
         return True
-        
+
     except Exception as e:
         _LOGGER.exception("Failed to set up Adaptive Irrigation: %s", e)
         # Clean up on failure
@@ -272,12 +245,12 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    
+
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
         CONFIGS.pop(entry.entry_id, None)
         STATES.pop(entry.entry_id, None)
-        
+
         # Unregister service if this is the last entry
         if not CONFIGS and hass.services.has_service(DOMAIN, "calculate_et"):
             hass.services.async_remove(DOMAIN, "calculate_et")
@@ -288,7 +261,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 def parse_config(entry: ConfigEntry, config: Config) -> None:
     """Parse configuration from config entry."""
     config_data = {**entry.data, **entry.options}
-    
+
     # Weather sensors
     weather_config = WeatherSensorConfig()
     weather_config.temperature_entity = config_data.get("temperature_entity")
@@ -301,7 +274,7 @@ def parse_config(entry: ConfigEntry, config: Config) -> None:
     weather_config.longitude = config_data.get("longitude", 0.0)
     weather_config.elevation = config_data.get("elevation", 0.0)
     config.weather_sensors = weather_config
-    
+
     # Auto-select ET method based on available sensors
     if weather_config.wind_speed_entity and weather_config.solar_radiation_entity:
         # Penman-Monteith: most accurate, requires wind and solar
@@ -315,7 +288,7 @@ def parse_config(entry: ConfigEntry, config: Config) -> None:
         # Hargreaves: simplest, requires only temperature
         config.et_method = "hargreaves"
         _LOGGER.info("Using Hargreaves ET method (minimal sensors)")
-    
+
     # Zones
     zones_data = config_data.get("zones", [])
     for idx, zone_data in enumerate(zones_data):
@@ -344,7 +317,7 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
             state.weather.temperature = value
         else:
             _LOGGER.warning("Invalid initial temperature: %.2f °C", value)
-    
+
     humidity_state = hass.states.get(config.weather_sensors.humidity_entity)
     if humidity_state and humidity_state.state not in ("unknown", "unavailable"):
         value = float(humidity_state.state)
@@ -352,7 +325,7 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
             state.weather.humidity = value
         else:
             _LOGGER.warning("Invalid initial humidity: %.2f%%", value)
-    
+
     precip_state = hass.states.get(config.weather_sensors.precipitation_entity)
     if precip_state and precip_state.state not in ("unknown", "unavailable"):
         value = float(precip_state.state)
@@ -360,7 +333,7 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
             state.weather.precipitation = value
         else:
             _LOGGER.warning("Invalid initial precipitation: %.2f mm", value)
-    
+
     if config.weather_sensors.wind_speed_entity:
         wind_state = hass.states.get(config.weather_sensors.wind_speed_entity)
         if wind_state and wind_state.state not in ("unknown", "unavailable"):
@@ -369,7 +342,7 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
                 state.weather.wind_speed = value
             else:
                 _LOGGER.warning("Invalid initial wind speed: %.2f km/h", value)
-    
+
     if config.weather_sensors.solar_radiation_entity:
         solar_state = hass.states.get(config.weather_sensors.solar_radiation_entity)
         if solar_state and solar_state.state not in ("unknown", "unavailable"):
@@ -378,7 +351,7 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
                 state.weather.solar_radiation = value
             else:
                 _LOGGER.warning("Invalid initial solar radiation: %.2f W/m²", value)
-    
+
     if config.weather_sensors.pressure_entity:
         pressure_state = hass.states.get(config.weather_sensors.pressure_entity)
         if pressure_state and pressure_state.state not in ("unknown", "unavailable"):
@@ -387,7 +360,7 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
                 state.weather.pressure = value
             else:
                 _LOGGER.warning("Invalid initial pressure: %.2f hPa", value)
-    
+
     # Initialize zone states
     for zone_id, zone_config in config.zones.items():
         zone_state = ZoneState()
@@ -397,40 +370,42 @@ def initialise_state(hass: HomeAssistant, config: Config, state: State) -> None:
 
 def is_valid_temperature(value: float) -> bool:
     """Check if temperature value is within reasonable bounds."""
-    return -50.0 <= value <= 60.0
+    return value is not None and -50.0 <= value <= 60.0
 
 
 def is_valid_humidity(value: float) -> bool:
     """Check if humidity value is within valid range."""
-    return 0.0 <= value <= 100.0
+    return value is not None and 0.0 <= value <= 100.0
 
 
 def is_valid_wind_speed(value: float) -> bool:
     """Check if wind speed is within reasonable bounds."""
-    return 0.0 <= value <= 200.0  # km/h (reasonable maximum for surface weather)
+    return value is not None and 0.0 <= value <= 200.0  # km/h (reasonable maximum for surface weather)
 
 
 def is_valid_solar_radiation(value: float) -> bool:
     """Check if solar radiation is within reasonable bounds."""
-    return 0.0 <= value <= 1500.0  # W/m² (max solar constant ~1361 W/m² plus atmosphere)
+    return (
+        value is not None and 0.0 <= value <= 1500.0
+    )  # W/m² (max solar constant ~1361 W/m² plus atmosphere)
 
 
 def is_valid_pressure(value: float) -> bool:
     """Check if pressure is within reasonable atmospheric range."""
-    return 800.0 <= value <= 1100.0  # hPa (covers extreme weather conditions)
+    return value is not None and 800.0 <= value <= 1100.0  # hPa (covers extreme weather conditions)
 
 
 def is_valid_precipitation(value: float) -> bool:
     """Check if precipitation is within reasonable bounds."""
-    return 0.0 <= value <= 500.0  # mm/day (extreme rainfall, but possible)
+    return value is not None and 0.0 <= value <= 500.0  # mm/day (extreme rainfall, but possible)
 
 
 async def get_historical_weather_data(
-    hass: HomeAssistant, 
-    entity_id: str, 
-    start_time: datetime, 
+    hass: HomeAssistant,
+    entity_id: str,
+    start_time: datetime,
     end_time: datetime,
-    validator=None
+    validator=None,
 ) -> list[float]:
     """Get historical sensor data from the database with optional validation."""
     states = await recorder.get_instance(hass).async_add_executor_job(
@@ -443,10 +418,10 @@ async def get_historical_weather_data(
         True,  # significant_changes_only
         1000,  # minimal_response - limit number of results
     )
-    
+
     if not states or entity_id not in states:
         return []
-    
+
     values = []
     filtered_count = 0
     for state in states[entity_id]:
@@ -458,13 +433,15 @@ async def get_historical_weather_data(
                     values.append(value)
                 else:
                     filtered_count += 1
-                    _LOGGER.debug("Filtered invalid sensor value: %.2f from %s", value, entity_id)
+                    _LOGGER.debug(
+                        "Filtered invalid sensor value: %.2f from %s", value, entity_id
+                    )
             except (ValueError, TypeError):
                 continue
-    
+
     if filtered_count > 0:
         _LOGGER.info("Filtered %d invalid readings from %s", filtered_count, entity_id)
-    
+
     return values
 
 
@@ -472,183 +449,268 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
     """Calculate ET using pyet and subtract from soil moisture."""
     config = CONFIGS[entry_id]
     state = STATES[entry_id]
-    
-    try:
-        import pyet
-    except ImportError:
-        _LOGGER.error("pyet package not installed. Cannot calculate ET.")
-        return
-    
-    # Query the previous day's data from database
-    end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Query the previous day's data from database (use timezone-aware datetime)
+    now = dt_util.now()
+    end_time = dt_util.start_of_local_day(now)
     start_time = end_time - timedelta(days=1)
-    
+
     _LOGGER.info("Fetching weather data from %s to %s", start_time, end_time)
-    
+
     # Fetch historical data for all sensors with validation
     temp_data = await get_historical_weather_data(
-        hass, config.weather_sensors.temperature_entity, start_time, end_time, is_valid_temperature
+        hass,
+        config.weather_sensors.temperature_entity,
+        start_time,
+        end_time,
+        is_valid_temperature,
     )
-    humidity_data = await get_historical_weather_data(
-        hass, config.weather_sensors.humidity_entity, start_time, end_time, is_valid_humidity
-    )
-    
-    if not temp_data or not humidity_data:
-        _LOGGER.warning("Missing required weather data for ET calculation")
+    if len(temp_data) == 0:
+        _LOGGER.warning("Missing required temperature data for ET calculation")
         return
-    
-    _LOGGER.info("Retrieved %d temperature and %d humidity readings from database", 
-                 len(temp_data), len(humidity_data))
-    
+
+    humidity_data = await get_historical_weather_data(
+        hass,
+        config.weather_sensors.humidity_entity,
+        start_time,
+        end_time,
+        is_valid_humidity,
+    )
+    if len(humidity_data) == 0:
+        _LOGGER.warning("Missing required relative humidity data for ET calculation")
+        return
+
+    _LOGGER.info(
+        "Retrieved %d temperature and %d humidity readings from database",
+        len(temp_data),
+        len(humidity_data),
+    )
+
     # Calculate averages (temperature must be in Celsius for pyet)
     temp_avg = sum(temp_data) / len(temp_data)
+    temp_max = max(temp_data)
+    temp_min = min(temp_data)
     humidity_avg = sum(humidity_data) / len(humidity_data)
-    
+
+    # Validate averages are not None
+    if temp_avg is None or humidity_avg is None:
+        _LOGGER.error(
+            "Calculated averages contain None: temp=%s, humidity=%s",
+            temp_avg,
+            humidity_avg,
+        )
+        return
+
     # Create dataframe for pyet (requires daily data)
     date = (datetime.now() - timedelta(days=1)).date()
-    
-    df = pd.DataFrame({
-        'tmean': [temp_avg],
-        'rh': [humidity_avg],
-    }, index=pd.DatetimeIndex([pd.Timestamp(date)]))
-    
+
+    df = pd.DataFrame(
+        {
+            "tmean": [float(temp_avg)],
+            "tmax": [float(temp_max)],
+            "tmin": [float(temp_min)],
+            "rh": [float(humidity_avg)],
+        },
+        index=pd.DatetimeIndex([pd.Timestamp(date)]),
+    )
+
     # Add optional parameters if available
     if config.weather_sensors.wind_speed_entity:
         wind_data = await get_historical_weather_data(
-            hass, config.weather_sensors.wind_speed_entity, start_time, end_time, is_valid_wind_speed
+            hass,
+            config.weather_sensors.wind_speed_entity,
+            start_time,
+            end_time,
+            is_valid_wind_speed,
         )
-        if wind_data:
+        if len(wind_data) > 0:
             # Convert km/h to m/s (pyet expects m/s)
             # km/h ÷ 3.6 = m/s
             wind_avg_kmh = sum(wind_data) / len(wind_data)
             wind_avg_ms = wind_avg_kmh / 3.6
-            df['wind'] = [wind_avg_ms]
-            _LOGGER.debug("Wind speed average: %.2f km/h (%.2f m/s) from %d readings", 
-                         wind_avg_kmh, wind_avg_ms, len(wind_data))
-    
+            df["wind"] = [wind_avg_ms]
+            _LOGGER.debug(
+                "Wind speed average: %.2f km/h (%.2f m/s) from %d readings",
+                wind_avg_kmh,
+                wind_avg_ms,
+                len(wind_data),
+            )
+
     if config.weather_sensors.solar_radiation_entity:
         solar_data = await get_historical_weather_data(
-            hass, config.weather_sensors.solar_radiation_entity, start_time, end_time, is_valid_solar_radiation
+            hass,
+            config.weather_sensors.solar_radiation_entity,
+            start_time,
+            end_time,
+            is_valid_solar_radiation,
         )
-        if solar_data:
+        if len(solar_data) > 0:
             # Convert W/m² (average) to MJ/m²/day (pyet expects MJ/m²/day)
             # W/m² × 0.0864 = MJ/m²/day
             solar_avg_wm2 = sum(solar_data) / len(solar_data)
             solar_avg_mj = solar_avg_wm2 * 0.0864
-            df['rs'] = [solar_avg_mj]
-            _LOGGER.debug("Solar radiation average: %.2f W/m² (%.2f MJ/m²/day) from %d readings", 
-                         solar_avg_wm2, solar_avg_mj, len(solar_data))
-    
+            df["rs"] = [solar_avg_mj]
+            _LOGGER.debug(
+                "Solar radiation average: %.2f W/m² (%.2f MJ/m²/day) from %d readings",
+                solar_avg_wm2,
+                solar_avg_mj,
+                len(solar_data),
+            )
+
     if config.weather_sensors.pressure_entity:
         pressure_data = await get_historical_weather_data(
-            hass, config.weather_sensors.pressure_entity, start_time, end_time, is_valid_pressure
+            hass,
+            config.weather_sensors.pressure_entity,
+            start_time,
+            end_time,
+            is_valid_pressure,
         )
-        if pressure_data:
+        if len(pressure_data) > 0:
             # Convert hPa to kPa (pyet expects kPa)
             pressure_avg_hpa = sum(pressure_data) / len(pressure_data)
             pressure_avg_kpa = pressure_avg_hpa / 10.0
-            df['pressure'] = [pressure_avg_kpa]
-            _LOGGER.debug("Pressure average: %.2f hPa (%.2f kPa) from %d readings", 
-                         pressure_avg_hpa, pressure_avg_kpa, len(pressure_data))
-    
+            df["pressure"] = [pressure_avg_kpa]
+            _LOGGER.debug(
+                "Pressure average: %.2f hPa (%.2f kPa) from %d readings",
+                pressure_avg_hpa,
+                pressure_avg_kpa,
+                len(pressure_data),
+            )
+
     try:
         # Calculate ET based on selected method
         lat = config.weather_sensors.latitude
         elevation = config.weather_sensors.elevation
-        
+
+        # Debug log DataFrame contents
+        _LOGGER.debug("DataFrame for ET calculation: %s", df.to_dict())
+        _LOGGER.debug("tmean: %s, rh: %s", df["tmean"].iloc[0], df["rh"].iloc[0])
+
         if config.et_method == "penman_monteith":
             # Requires more data
-            if 'wind' in df.columns and 'rs' in df.columns:
+            if "wind" in df.columns and "rs" in df.columns:
+                # Pass pressure if available, otherwise let pyet calculate from elevation
+                pressure_param = df["pressure"] if "pressure" in df.columns else None
+                _LOGGER.debug(
+                    "Calling pyet.pm_fao56 with: tmean=%s, tmax=%s, tmin=%s, wind=%s, rs=%s, rh=%s, elevation=%s, pressure=%s, lat=%s",
+                    df["tmean"].iloc[0],
+                    df["tmax"].iloc[0],
+                    df["tmin"].iloc[0],
+                    df["wind"].iloc[0],
+                    df["rs"].iloc[0],
+                    df["rh"].iloc[0],
+                    elevation,
+                    pressure_param.iloc[0] if pressure_param is not None else None,
+                    lat,
+                )
                 et0 = pyet.pm_fao56(
-                    df['tmean'], 
-                    df['wind'], 
-                    df['rs'],
-                    df['rh'],
+                    tmean=df["tmean"],
+                    wind=df["wind"],
+                    rs=df["rs"],
+                    rh=df["rh"],
+                    tmax=df["tmax"],
+                    tmin=df["tmin"],
                     elevation=elevation,
-                    lat=lat
+                    pressure=pressure_param,
+                    lat=lat,
                 )
             else:
-                _LOGGER.warning("Insufficient data for Penman-Monteith, using Hargreaves")
-                et0 = pyet.hargreaves(df['tmean'], lat=lat)
+                _LOGGER.warning(
+                    "Insufficient data for Penman-Monteith, using Hargreaves"
+                )
+                et0 = pyet.hargreaves(
+                    df["tmean"], max(temp_data), min(temp_data), lat=lat
+                )
         elif config.et_method == "priestley_taylor":
-            if 'rs' in df.columns:
-                et0 = pyet.priestley_taylor(df['tmean'], df['rs'], elevation=elevation, lat=lat)
+            if "rs" in df.columns:
+                et0 = pyet.priestley_taylor(
+                    df["tmean"], df["rs"], elevation=elevation, lat=lat
+                )
             else:
-                _LOGGER.warning("Insufficient data for Priestley-Taylor, using Hargreaves")
-                et0 = pyet.hargreaves(df['tmean'], lat=lat)
+                _LOGGER.warning(
+                    "Insufficient data for Priestley-Taylor, using Hargreaves"
+                )
+                et0 = pyet.hargreaves(
+                    df["tmean"], max(temp_data), min(temp_data), lat=lat
+                )
         else:  # hargreaves (default/fallback)
-            et0 = pyet.hargreaves(df['tmean'], lat=lat)
-        
+            et0 = pyet.hargreaves(df["tmean"], max(temp_data), min(temp_data), lat=lat)
+
         # Get the ET value (in mm)
         et_mm = float(et0.iloc[0]) if not et0.empty else 0.0
-        
+
         _LOGGER.debug("Calculated ET0: %.2f mm/day", et_mm)
-        
+
         # Update the reference ET sensor
         update_et0_sensor(hass, entry_id, et_mm)
-        
+
         # Apply ET to all zones with crop coefficient
         for zone_id, zone_config in config.zones.items():
             zone_state = state.zones[zone_id]
-            
+
             # Apply crop coefficient
             et_actual = et_mm * zone_config.crop_coefficient
-            
+
             # Subtract ET from balance (moves toward deficit/negative)
             zone_state.soil_moisture_balance -= et_actual
             zone_state.last_et = et_actual
             zone_state.last_et_calculation = datetime.now()
             zone_state.total_sprinkler_runtime_today = 0.0  # Reset daily counter
-            
+
             _LOGGER.debug(
                 "Zone %s: ET=%.2f mm, New balance=%.2f mm",
                 zone_config.name,
                 et_actual,
-                zone_state.soil_moisture_balance
+                zone_state.soil_moisture_balance,
             )
-            
+
             # Update number entity
-            update_zone_number(hass, entry_id, zone_id, zone_state.soil_moisture_balance)
-    
+            update_zone_number(
+                hass, entry_id, zone_id, zone_state.soil_moisture_balance
+            )
+
     except Exception as e:
-        _LOGGER.error("Error calculating ET: %s", e)
+        _LOGGER.exception("Error calculating ET: %s", e)
 
 
 def update_et0_sensor(hass: HomeAssistant, entry_id: str, et0_value: float) -> None:
     """Update the reference ET sensor."""
     if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
         return
-    
+
     entities = hass.data[DOMAIN][entry_id].get("entities", {})
     et0_sensor_key = "et0_sensor"
-    
+
     if et0_sensor_key in entities:
         et0_sensor = entities[et0_sensor_key]
         et0_sensor.update_et0(et0_value)
 
 
-def update_zone_number(hass: HomeAssistant, entry_id: str, zone_id: str, balance: float) -> None:
+def update_zone_number(
+    hass: HomeAssistant, entry_id: str, zone_id: str, balance: float
+) -> None:
     """Update the soil moisture balance number for a zone."""
     if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
         return
-    
+
     entities = hass.data[DOMAIN][entry_id].get("entities", {})
     number_key = f"soil_moisture_balance_{zone_id}"
-    
+
     if number_key in entities:
         number = entities[number_key]
         number.update_value(balance)
 
 
-def update_next_runtime_sensor(hass: HomeAssistant, entry_id: str, zone_id: str) -> None:
+def update_next_runtime_sensor(
+    hass: HomeAssistant, entry_id: str, zone_id: str
+) -> None:
     """Update the next runtime sensor for a zone."""
     if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
         return
-    
+
     entities = hass.data[DOMAIN][entry_id].get("entities", {})
     next_runtime_key = f"next_runtime_{zone_id}"
-    
+
     if next_runtime_key in entities:
         next_runtime_sensor = entities[next_runtime_key]
         next_runtime_sensor.update_next_runtime()
-
