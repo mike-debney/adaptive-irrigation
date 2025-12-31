@@ -91,9 +91,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         )
                         return
 
-                    old_precip = 0.0
-                    if old_state and old_state.state not in ("unknown", "unavailable"):
-                        old_precip = float(old_state.state)
+                    # Skip processing on first update (old_state is None on startup)
+                    # This prevents adding accumulated rainfall on restart
+                    if old_state is None or old_state.state in ("unknown", "unavailable"):
+                        _LOGGER.debug(
+                            "Skipping precipitation update - no previous state (startup or sensor unavailable)"
+                        )
+                        state.weather.precipitation = new_precip
+                        return
+
+                    old_precip = float(old_state.state)
 
                     # If precipitation increased, add to all zones
                     precip_diff = new_precip - old_precip
