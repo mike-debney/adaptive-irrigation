@@ -517,6 +517,8 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
     temp_max = max(temp_data)
     temp_min = min(temp_data)
     humidity_avg = sum(humidity_data) / len(humidity_data)
+    humidity_max = max(humidity_data)
+    humidity_min = min(humidity_data)
 
     # Validate averages are not None
     if temp_avg is None or humidity_avg is None:
@@ -536,6 +538,8 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
             "tmax": [float(temp_max)],
             "tmin": [float(temp_min)],
             "rh": [float(humidity_avg)],
+            "rhmax": [float(humidity_max)],
+            "rhmin": [float(humidity_min)],
         },
         index=pd.DatetimeIndex([pd.Timestamp(date)]),
     )
@@ -634,6 +638,8 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
                     wind=df["wind"],
                     rs=df["rs"],
                     rh=df["rh"],
+                    rhmax=df["rhmax"],
+                    rhmin=df["rhmin"],
                     tmax=df["tmax"],
                     tmin=df["tmin"],
                     elevation=elevation,
