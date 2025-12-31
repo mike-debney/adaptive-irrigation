@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, get_device_info
 
@@ -78,7 +79,7 @@ async def async_setup_entry(
     async_add_entities(sensors)
 
 
-class ReferenceETSensor(SensorEntity):
+class ReferenceETSensor(RestoreEntity, SensorEntity):
     """Sensor showing reference evapotranspiration (ET0) from yesterday.
     
     This is the ET value before crop coefficient adjustment.
@@ -96,6 +97,24 @@ class ReferenceETSensor(SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_yesterday_reference_et"
         self._attr_native_value = None
         self._attr_device_info = device_info
+    
+    async def async_added_to_hass(self) -> None:
+        """Run when entity is added to hass - restore state if available."""
+        await super().async_added_to_hass()
+        
+        # Try to restore previous state
+        last_state = await self.async_get_last_state()
+        
+        if last_state is not None and last_state.state not in ("unknown", "unavailable"):
+            try:
+                self._attr_native_value = float(last_state.state)
+                _LOGGER.info("Restored reference ET: %.2f mm", self._attr_native_value)
+            except (ValueError, TypeError):
+                _LOGGER.warning("Could not restore reference ET, starting at None")
+                self._attr_native_value = None
+        else:
+            _LOGGER.info("No previous reference ET state, starting at None")
+            self._attr_native_value = None
 
     @callback
     def update_et0(self, et0_value: float) -> None:
