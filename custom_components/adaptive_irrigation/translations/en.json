@@ -11,7 +11,8 @@
           "precipitation_entity": "Precipitation Sensor (mm)",
           "wind_speed_entity": "Wind Speed Sensor (km/h) (Optional)",
           "solar_radiation_entity": "Solar Radiation Sensor (W/m²) (Optional)",
-          "pressure_entity": "Pressure Sensor (hPa) (Optional)"
+          "pressure_entity": "Pressure Sensor (hPa) (Optional)",
+          "forecast_rain_entity": "Forecasted Rain Today (mm) (Optional)"
         }
       },
       "location": {
@@ -73,7 +74,8 @@
           "precipitation_entity": "Precipitation Sensor (mm)",
           "wind_speed_entity": "Wind Speed Sensor (km/h) (Optional)",
           "solar_radiation_entity": "Solar Radiation Sensor (W/m²) (Optional)",
-          "pressure_entity": "Pressure Sensor (hPa) (Optional)"
+          "pressure_entity": "Pressure Sensor (hPa) (Optional)",
+          "forecast_rain_entity": "Forecasted Rain Today (mm) (Optional)"
         }
       },
       "location": {

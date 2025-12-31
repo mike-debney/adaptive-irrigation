@@ -60,6 +60,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config.weather_sensors.precipitation_entity,
         ]
 
+        if config.weather_sensors.forecast_rain_entity:
+            entity_ids.append(config.weather_sensors.forecast_rain_entity)
+
         # Add sprinkler entities
         for zone_config in config.zones.values():
             entity_ids.append(zone_config.sprinkler_entity)
@@ -116,6 +119,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             )
 
                     state.weather.precipitation = new_precip
+
+            elif (
+                config.weather_sensors.forecast_rain_entity
+                and entity_id == config.weather_sensors.forecast_rain_entity
+            ):
+                # Forecasted rain changed - recalculate runtime for all zones
+                if new_state.state not in ("unknown", "unavailable"):
+                    try:
+                        forecast_value = float(new_state.state)
+                        _LOGGER.debug("Forecast rain updated: %.2f mm", forecast_value)
+                        # Update all zone runtime sensors since deficit calculation changed
+                        for zone_id in state.zones.keys():
+                            update_runtime_sensors(hass, entry.entry_id, zone_id)
+                    except (ValueError, TypeError):
+                        _LOGGER.warning("Invalid forecast rain value: %s", new_state.state)
 
             # Sprinkler state changes
             for zone_id, zone_config in config.zones.items():
@@ -270,6 +288,7 @@ def parse_config(entry: ConfigEntry, config: Config) -> None:
     weather_config.wind_speed_entity = config_data.get("wind_speed_entity")
     weather_config.solar_radiation_entity = config_data.get("solar_radiation_entity")
     weather_config.pressure_entity = config_data.get("pressure_entity")
+    weather_config.forecast_rain_entity = config_data.get("forecast_rain_entity")
     weather_config.latitude = config_data.get("latitude", 0.0)
     weather_config.longitude = config_data.get("longitude", 0.0)
     weather_config.elevation = config_data.get("elevation", 0.0)
@@ -699,6 +718,39 @@ def update_zone_number(
     if number_key in entities:
         number = entities[number_key]
         number.update_value(balance)
+
+
+def update_runtime_sensors(hass: HomeAssistant, entry_id: str, zone_id: str) -> None:
+    """Update runtime and next runtime sensors for a zone (without changing balance)."""
+    if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
+        return
+    
+    entities = hass.data[DOMAIN][entry_id].get("entities", {})
+    state = hass.data[DOMAIN][entry_id].get("state")
+    
+    if not state or zone_id not in state.zones:
+        return
+    
+    balance = state.zones[zone_id].soil_moisture_balance
+    
+    # Update required runtime sensor
+    runtime_key = f"runtime_{zone_id}"
+    if runtime_key in entities:
+        runtime_sensor = entities[runtime_key]
+        runtime_sensor.update_from_balance(balance)
+    
+    # Update can run binary sensor
+    can_run_key = f"can_run_{zone_id}"
+    if can_run_key in entities:
+        can_run_sensor = entities[can_run_key]
+        can_run_sensor.update_can_run()
+    
+    # Update next runtime sensor
+    next_runtime_key = f"next_runtime_{zone_id}"
+    if next_runtime_key in entities:
+        next_runtime_sensor = entities[next_runtime_key]
+        next_runtime_sensor.update_next_runtime()
+
 
 
 def update_next_runtime_sensor(

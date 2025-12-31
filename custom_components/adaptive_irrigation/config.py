@@ -10,6 +10,7 @@ class WeatherSensorConfig:
     solar_radiation_entity: str | None = None
     pressure_entity: str | None = None
     precipitation_entity: str
+    forecast_rain_entity: str | None = None
     latitude: float
     longitude: float
     elevation: float

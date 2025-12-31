@@ -106,6 +106,11 @@ class AdaptiveIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
                         domain=["sensor", "input_number"], multiple=False
                     )
                 ),
+                vol.Optional("forecast_rain_entity"): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "input_number", "number"], multiple=False
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -351,6 +356,18 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
         else:
             schema_fields[vol.Optional("pressure_entity")] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            )
+
+        forecast_rain_entity = current_config.get("forecast_rain_entity")
+        if forecast_rain_entity:
+            schema_fields[vol.Optional("forecast_rain_entity", default=forecast_rain_entity)] = (
+                selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain=["sensor", "input_number", "number"])
+                )
+            )
+        else:
+            schema_fields[vol.Optional("forecast_rain_entity")] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number", "number"])
             )
 
         schema = vol.Schema(schema_fields)

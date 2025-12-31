@@ -126,6 +126,7 @@ class RequiredRuntimeSensor(SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         self._zone_id = zone_id
+        self._entry_id = entry.entry_id
         self._precipitation_rate = precipitation_rate  # mm/hour
         self._attr_name = f"{zone_name} Required Runtime"
         self._attr_unique_id = f"{entry.entry_id}_{zone_id}_required_runtime"
@@ -143,6 +144,12 @@ class RequiredRuntimeSensor(SensorEntity):
             # balance is negative, so abs(balance) gives deficit in mm
             deficit_mm = abs(balance)
             
+            # Factor in forecasted rain if available
+            forecast_rain = self._get_forecast_rain()
+            if forecast_rain > 0:
+                _LOGGER.debug("Accounting for forecasted rain: %.2f mm", forecast_rain)
+                deficit_mm = max(0, deficit_mm - forecast_rain)
+            
             # Time (hours) = deficit (mm) / precipitation_rate (mm/hour)
             # Time (seconds) = hours * 3600
             runtime_seconds = (deficit_mm / self._precipitation_rate) * 3600
@@ -154,6 +161,26 @@ class RequiredRuntimeSensor(SensorEntity):
     def update_precipitation_rate(self, rate: float) -> None:
         """Update precipitation rate if config changes."""
         self._precipitation_rate = rate
+    
+    def _get_forecast_rain(self) -> float:
+        """Get forecasted rain amount from configured entity."""
+        if DOMAIN not in self.hass.data or self._entry_id not in self.hass.data[DOMAIN]:
+            return 0.0
+        
+        entry_data = self.hass.data[DOMAIN][self._entry_id]
+        config = entry_data.get("config")
+        
+        if not config or not config.weather_sensors.forecast_rain_entity:
+            return 0.0
+        
+        forecast_state = self.hass.states.get(config.weather_sensors.forecast_rain_entity)
+        if forecast_state and forecast_state.state not in ("unknown", "unavailable"):
+            try:
+                return max(0.0, float(forecast_state.state))
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid forecast rain value: %s", forecast_state.state)
+        
+        return 0.0
 
 
 class NextRuntimeSensor(SensorEntity):
@@ -225,11 +252,30 @@ class NextRuntimeSensor(SensorEntity):
         
         # Calculate base runtime
         deficit_mm = abs(balance)
+        
+        # Factor in forecasted rain if available
+        forecast_rain = self._get_forecast_rain(config)
+        if forecast_rain > 0:
+            deficit_mm = max(0, deficit_mm - forecast_rain)
+        
         runtime_hours = deficit_mm / zone_config.precipitation_rate
-        runtime_seconds = runtime_hours * 3600
         
         # Clamp to min/max limits
-        runtime_seconds = max(zone_config.min_runtime, min(runtime_seconds, zone_config.max_runtime))
+        runtime_seconds = max(zone_config.min_runtime, min(runtime_hours * 3600, zone_config.max_runtime))
         
         self._attr_native_value = round(runtime_seconds)
         self.async_write_ha_state()
+    
+    def _get_forecast_rain(self, config) -> float:
+        """Get forecasted rain amount from configured entity."""
+        if not config.weather_sensors.forecast_rain_entity:
+            return 0.0
+        
+        forecast_state = self.hass.states.get(config.weather_sensors.forecast_rain_entity)
+        if forecast_state and forecast_state.state not in ("unknown", "unavailable"):
+            try:
+                return max(0.0, float(forecast_state.state))
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid forecast rain value: %s", forecast_state.state)
+        
+        return 0.0
