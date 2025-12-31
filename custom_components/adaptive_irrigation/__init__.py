@@ -721,13 +721,44 @@ def update_et0_sensor(hass: HomeAssistant, entry_id: str, et0_value: float) -> N
 def update_zone_number(
     hass: HomeAssistant, entry_id: str, zone_id: str, balance: float
 ) -> None:
-    """Update the soil moisture balance number for a zone."""
+    """Update the soil moisture balance number for a zone with clipping to min/max limits."""
     if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
         return
 
-    entities = hass.data[DOMAIN][entry_id].get("entities", {})
+    entry_data = hass.data[DOMAIN][entry_id]
+    entities = entry_data.get("entities", {})
+    config = entry_data.get("config")
+    state = entry_data.get("state")
+    
+    if not config or not state or zone_id not in config.zones:
+        return
+    
+    zone_config = config.zones[zone_id]
+    
+    # Clip balance to configured limits
+    original_balance = balance
+    if balance > zone_config.max_balance:
+        balance = zone_config.max_balance
+        _LOGGER.info(
+            "Zone %s: Balance clipped from %.2f to max %.2f mm",
+            zone_config.name,
+            original_balance,
+            balance,
+        )
+    elif balance < zone_config.min_balance:
+        balance = zone_config.min_balance
+        _LOGGER.info(
+            "Zone %s: Balance clipped from %.2f to min %.2f mm",
+            zone_config.name,
+            original_balance,
+            balance,
+        )
+    
+    # Update the state with clipped value
+    state.zones[zone_id].soil_moisture_balance = balance
+    
+    # Update the number entity
     number_key = f"soil_moisture_balance_{zone_id}"
-
     if number_key in entities:
         number = entities[number_key]
         number.update_value(balance)
