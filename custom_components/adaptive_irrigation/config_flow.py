@@ -602,6 +602,17 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     )
                 ),
                 vol.Optional(
+                    "drainage_rate",
+                    default=current_zone.get("drainage_rate", 1.0),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=50,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/day",
+                    )
+                ),
+                vol.Optional(
                     "crop_coefficient",
                     default=current_zone.get(
                         "crop_coefficient", DEFAULT_CROP_COEFFICIENT
@@ -661,17 +672,6 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                         max=200,
                         mode=selector.NumberSelectorMode.BOX,
                         unit_of_measurement="mm",
-                    )
-                ),
-                vol.Optional(
-                    "drainage_rate",
-                    default=current_zone.get("drainage_rate", 1.0),
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=0,
-                        max=50,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="mm/day",
                     )
                 ),
                 vol.Required("delete_zone", default=False): selector.BooleanSelector(),
