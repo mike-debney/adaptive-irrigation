@@ -253,18 +253,8 @@ class NextRuntimeSensor(SensorEntity):
         zone_state = state.zones[self._zone_id]
         balance = zone_state.soil_moisture_balance
         
-        # Check if zone can run (same logic as binary sensor)
-        # Get can_run sensor to check
-        can_run_entities = entry_data.get("entities", {})
-        can_run_key = f"can_run_{self._zone_id}"
-        
-        if can_run_key in can_run_entities:
-            can_run = can_run_entities[can_run_key].is_on
-        else:
-            # Fallback: check manually (balance < 0 means deficit exists)
-            can_run = balance < 0
-        
-        if not can_run or balance >= 0:
+        # If no deficit, no runtime needed
+        if balance >= 0:
             self._attr_native_value = 0
             self.async_write_ha_state()
             return
