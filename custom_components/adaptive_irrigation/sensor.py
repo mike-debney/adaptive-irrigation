@@ -277,10 +277,17 @@ class NextRuntimeSensor(SensorEntity):
         if forecast_rain > 0:
             deficit_mm = max(0, deficit_mm - forecast_rain)
         
+        # If no deficit after accounting for forecast, no need to run
+        if deficit_mm == 0:
+            self._attr_native_value = 0
+            self.async_write_ha_state()
+            return
+        
         runtime_hours = deficit_mm / zone_config.precipitation_rate
+        runtime_seconds = runtime_hours * 3600
         
         # Clamp to min/max limits
-        runtime_seconds = max(zone_config.min_runtime, min(runtime_hours * 3600, zone_config.max_runtime))
+        runtime_seconds = max(zone_config.min_runtime, min(runtime_seconds, zone_config.max_runtime))
         
         self._attr_native_value = round(runtime_seconds)
         self.async_write_ha_state()

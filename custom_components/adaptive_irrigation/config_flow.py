@@ -205,7 +205,17 @@ class AdaptiveIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
                     "precipitation_rate", default=10.0
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/hour",
+                    )
+                ),
+                vol.Optional("drainage_rate", default=1.0): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=50,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/day",
                     )
                 ),
                 vol.Optional(
@@ -454,7 +464,17 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     "precipitation_rate", default=10.0
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/hour",
+                    )
+                ),
+                vol.Optional("drainage_rate", default=1.0): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=50,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/day",
                     )
                 ),
                 vol.Optional(
@@ -576,7 +596,9 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                     default=current_zone.get("precipitation_rate", 10.0),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, mode=selector.NumberSelectorMode.BOX
+                        min=0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/hour",
                     )
                 ),
                 vol.Optional(
@@ -639,6 +661,17 @@ class AdaptiveIrrigationOptionsFlow(OptionsFlow):
                         max=200,
                         mode=selector.NumberSelectorMode.BOX,
                         unit_of_measurement="mm",
+                    )
+                ),
+                vol.Optional(
+                    "drainage_rate",
+                    default=current_zone.get("drainage_rate", 1.0),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=50,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="mm/day",
                     )
                 ),
                 vol.Required("delete_zone", default=False): selector.BooleanSelector(),

@@ -191,8 +191,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 zone_state.soil_moisture_balance,
                             )
 
-                            # Update next runtime sensor since minimum_interval constraint now applies
-                            update_next_runtime_sensor(hass, entry.entry_id, zone_id)
+                            # Update all runtime sensors since minimum_interval constraint now applies
+                            update_runtime_sensors(hass, entry.entry_id, zone_id)
 
                             zone_state.sprinkler_on_time = None
 
@@ -330,6 +330,7 @@ def parse_config(entry: ConfigEntry, config: Config) -> None:
         zone_config.minimum_interval = zone_data.get("minimum_interval", 3600)
         zone_config.max_balance = zone_data.get("max_balance", 50.0)
         zone_config.min_balance = zone_data.get("min_balance", -50.0)
+        zone_config.drainage_rate = zone_data.get("drainage_rate", 1.0)
         config.zones[zone_id] = zone_config
 
 
@@ -683,16 +684,20 @@ async def calculate_and_apply_et(hass: HomeAssistant, entry_id: str) -> None:
             # Apply crop coefficient
             et_actual = et_mm * zone_config.crop_coefficient
 
-            # Subtract ET from balance (moves toward deficit/negative)
-            zone_state.soil_moisture_balance -= et_actual
+            # Get drainage rate (default to 1.0 mm/day if not configured)
+            drainage_rate = getattr(zone_config, "drainage_rate", 1.0)
+
+            # Subtract ET and drainage from balance (moves toward deficit/negative)
+            zone_state.soil_moisture_balance -= et_actual + drainage_rate
             zone_state.last_et = et_actual
             zone_state.last_et_calculation = datetime.now()
             zone_state.total_sprinkler_runtime_today = 0.0  # Reset daily counter
 
             _LOGGER.debug(
-                "Zone %s: ET=%.2f mm, New balance=%.2f mm",
+                "Zone %s: ET=%.2f mm, Drainage=%.2f mm, New balance=%.2f mm",
                 zone_config.name,
                 et_actual,
+                drainage_rate,
                 zone_state.soil_moisture_balance,
             )
 

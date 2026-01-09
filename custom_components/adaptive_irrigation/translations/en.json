@@ -43,7 +43,8 @@
           "min_runtime": "Minimum Runtime (seconds)",
           "minimum_interval": "Minimum Interval (seconds)",
           "max_balance": "Maximum Balance (mm)",
-          "min_balance": "Minimum Balance (mm)"
+          "min_balance": "Minimum Balance (mm)",
+          "drainage_rate": "Drainage Rate (mm/day)"
         }
       }
     },
@@ -109,7 +110,8 @@
           "min_runtime": "Minimum Runtime (seconds)",
           "minimum_interval": "Minimum Interval (seconds)",
           "max_balance": "Maximum Balance (mm)",
-          "min_balance": "Minimum Balance (mm)"
+          "min_balance": "Minimum Balance (mm)",
+          "drainage_rate": "Drainage Rate (mm/day)"
         }
       },
       "select_zone_to_edit": {
@@ -132,6 +134,7 @@
           "minimum_interval": "Minimum Interval (seconds)",
           "max_balance": "Maximum Balance (mm)",
           "min_balance": "Minimum Balance (mm)",
+          "drainage_rate": "Drainage Rate (mm/day)",
           "delete_zone": "Delete this zone"
         }
       }

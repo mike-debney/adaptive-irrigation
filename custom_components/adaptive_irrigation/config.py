@@ -29,6 +29,7 @@ class ZoneConfig:
     minimum_interval: int = 3600  # seconds - minimum time between irrigation cycles
     max_balance: float = 5.0  # mm - don't run if balance is above this
     min_balance: float = -20.0  # mm - don't run if balance is below this (too dry for effective irrigation)
+    drainage_rate: float = 1.0  # mm/day - water loss through drainage
 
 
 class Config:
