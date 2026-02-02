@@ -126,8 +126,8 @@ class ReferenceETSensor(RestoreEntity, SensorEntity):
 class RequiredRuntimeSensor(SensorEntity):
     """Sensor showing required sprinkler runtime to reach optimal moisture (0mm balance).
     
-    Returns time in seconds needed to eliminate moisture deficit.
-    Returns 0 if balance is 0 or positive (no deficit).
+    This entity simply reads pre-calculated values from state.
+    All calculation logic is handled by the coordinator.
     """
 
     _attr_has_entity_name = True
@@ -146,70 +146,39 @@ class RequiredRuntimeSensor(SensorEntity):
         """Initialize the sensor."""
         self._zone_id = zone_id
         self._entry_id = entry.entry_id
-        self._precipitation_rate = precipitation_rate  # mm/hour
         self._attr_name = f"{zone_name} Required Runtime"
         self._attr_unique_id = f"{entry.entry_id}_{zone_id}_required_runtime"
         self._attr_native_value = 0
         self._attr_device_info = device_info
 
     @callback
-    def update_from_balance(self, balance: float) -> None:
-        """Update runtime calculation based on current balance."""
-        if balance >= 0:
-            # No deficit or excess moisture - no watering needed
-            runtime_seconds = 0
-        else:
-            # Calculate time needed to eliminate deficit
-            # balance is negative, so abs(balance) gives deficit in mm
-            deficit_mm = abs(balance)
-            
-            # Factor in forecasted rain if available
-            forecast_rain = self._get_forecast_rain()
-            if forecast_rain > 0:
-                _LOGGER.debug("Accounting for forecasted rain: %.2f mm", forecast_rain)
-                deficit_mm = max(0, deficit_mm - forecast_rain)
-            
-            # Time (hours) = deficit (mm) / precipitation_rate (mm/hour)
-            # Time (seconds) = hours * 3600
-            runtime_seconds = (deficit_mm / self._precipitation_rate) * 3600
-        
-        self._attr_native_value = round(runtime_seconds)
-        self.async_write_ha_state()
-        
-    @callback
-    def update_precipitation_rate(self, rate: float) -> None:
-        """Update precipitation rate if config changes."""
-        self._precipitation_rate = rate
-    
-    def _get_forecast_rain(self) -> float:
-        """Get forecasted rain amount from configured entity."""
+    def refresh_from_state(self) -> None:
+        """Refresh entity value from pre-calculated state."""
         if DOMAIN not in self.hass.data or self._entry_id not in self.hass.data[DOMAIN]:
-            return 0.0
+            self._attr_native_value = 0
+            self.async_write_ha_state()
+            return
         
         entry_data = self.hass.data[DOMAIN][self._entry_id]
-        config = entry_data.get("config")
+        state = entry_data.get("state")
         
-        if not config or not config.weather_sensors.forecast_rain_entity:
-            return 0.0
+        if not state or self._zone_id not in state.zones:
+            self._attr_native_value = 0
+            self.async_write_ha_state()
+            return
         
-        forecast_state = self.hass.states.get(config.weather_sensors.forecast_rain_entity)
-        if forecast_state and forecast_state.state not in ("unknown", "unavailable"):
-            try:
-                return max(0.0, float(forecast_state.state))
-            except (ValueError, TypeError):
-                _LOGGER.warning("Invalid forecast rain value: %s", forecast_state.state)
+        zone_state = state.zones[self._zone_id]
         
-        return 0.0
+        # Read pre-calculated value from state
+        self._attr_native_value = round(zone_state.calculated.required_runtime_seconds)
+        self.async_write_ha_state()
 
 
 class NextRuntimeSensor(SensorEntity):
     """Sensor showing next runtime accounting for scheduling constraints.
     
-    Returns time in seconds for the next irrigation run, accounting for:
-    - Minimum runtime
-    - Maximum runtime
-    - Balance limits
-    Returns 0 if zone cannot run.
+    This entity simply reads pre-calculated values from state.
+    All calculation logic is handled by the coordinator.
     """
 
     _attr_has_entity_name = True
@@ -233,65 +202,27 @@ class NextRuntimeSensor(SensorEntity):
         self._attr_device_info = device_info
 
     @callback
-    def update_next_runtime(self) -> None:
-        """Update next runtime calculation accounting for constraints."""
+    def refresh_from_state(self) -> None:
+        """Refresh entity value from pre-calculated state."""
         if DOMAIN not in self.hass.data or self._entry_id not in self.hass.data[DOMAIN]:
             self._attr_native_value = 0
             self.async_write_ha_state()
             return
         
         entry_data = self.hass.data[DOMAIN][self._entry_id]
-        config = entry_data.get("config")
         state = entry_data.get("state")
         
-        if not config or not state or self._zone_id not in config.zones:
+        if not state or self._zone_id not in state.zones:
             self._attr_native_value = 0
             self.async_write_ha_state()
             return
         
-        zone_config = config.zones[self._zone_id]
         zone_state = state.zones[self._zone_id]
-        balance = zone_state.soil_moisture_balance
         
-        # If no deficit, no runtime needed
-        if balance >= 0:
+        # Read pre-calculated values from state
+        if zone_state.calculated.can_run:
+            self._attr_native_value = round(zone_state.calculated.clamped_runtime_seconds)
+        else:
             self._attr_native_value = 0
-            self.async_write_ha_state()
-            return
         
-        # Calculate base runtime
-        deficit_mm = abs(balance)
-        
-        # Factor in forecasted rain if available
-        forecast_rain = self._get_forecast_rain(config)
-        if forecast_rain > 0:
-            deficit_mm = max(0, deficit_mm - forecast_rain)
-        
-        # If no deficit after accounting for forecast, no need to run
-        if deficit_mm == 0:
-            self._attr_native_value = 0
-            self.async_write_ha_state()
-            return
-        
-        runtime_hours = deficit_mm / zone_config.precipitation_rate
-        runtime_seconds = runtime_hours * 3600
-        
-        # Clamp to min/max limits
-        runtime_seconds = max(zone_config.min_runtime, min(runtime_seconds, zone_config.max_runtime))
-        
-        self._attr_native_value = round(runtime_seconds)
         self.async_write_ha_state()
-    
-    def _get_forecast_rain(self, config) -> float:
-        """Get forecasted rain amount from configured entity."""
-        if not config.weather_sensors.forecast_rain_entity:
-            return 0.0
-        
-        forecast_state = self.hass.states.get(config.weather_sensors.forecast_rain_entity)
-        if forecast_state and forecast_state.state not in ("unknown", "unavailable"):
-            try:
-                return max(0.0, float(forecast_state.state))
-            except (ValueError, TypeError):
-                _LOGGER.warning("Invalid forecast rain value: %s", forecast_state.state)
-        
-        return 0.0

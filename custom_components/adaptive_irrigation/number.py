@@ -137,24 +137,6 @@ class SoilMoistureBalanceNumber(RestoreEntity, NumberEntity):
         self._update_runtime_sensor(value)
     
     def _update_runtime_sensor(self, balance: float) -> None:
-        """Update the corresponding runtime sensors and binary sensor."""
-        if DOMAIN in self.hass.data and self._entry_id in self.hass.data[DOMAIN]:
-            entities = self.hass.data[DOMAIN][self._entry_id].get("entities", {})
-            
-            # Update required runtime sensor
-            runtime_key = f"runtime_{self._zone_id}"
-            if runtime_key in entities:
-                runtime_sensor = entities[runtime_key]
-                runtime_sensor.update_from_balance(balance)
-            
-            # Update can run binary sensor
-            can_run_key = f"can_run_{self._zone_id}"
-            if can_run_key in entities:
-                can_run_sensor = entities[can_run_key]
-                can_run_sensor.update_can_run()
-            
-            # Update next runtime sensor
-            next_runtime_key = f"next_runtime_{self._zone_id}"
-            if next_runtime_key in entities:
-                next_runtime_sensor = entities[next_runtime_key]
-                next_runtime_sensor.update_next_runtime()
+        """Trigger recalculation and update of runtime sensors via coordinator."""
+        from . import update_runtime_sensors
+        update_runtime_sensors(self.hass, self._entry_id, self._zone_id)

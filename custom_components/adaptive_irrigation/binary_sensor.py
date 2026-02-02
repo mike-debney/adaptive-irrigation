@@ -50,7 +50,11 @@ async def async_setup_entry(
 
 
 class ZoneCanRunBinarySensor(BinarySensorEntity):
-    """Binary sensor indicating if a zone can run based on scheduling constraints."""
+    """Binary sensor indicating if a zone can run based on scheduling constraints.
+    
+    This entity simply reads pre-calculated values from state.
+    All calculation logic is handled by the coordinator.
+    """
 
     _attr_has_entity_name = True
     _attr_should_poll = False
@@ -58,6 +62,7 @@ class ZoneCanRunBinarySensor(BinarySensorEntity):
     def __init__(self, entry: ConfigEntry, device_info, zone_id: str, zone_name: str) -> None:
         """Initialize the binary sensor entity."""
         self._zone_id = zone_id
+        self._zone_name = zone_name
         self._entry_id = entry.entry_id
         self._attr_name = f"{zone_name} Can Run"
         self._attr_unique_id = f"{entry.entry_id}_{zone_id}_can_run"
@@ -68,66 +73,48 @@ class ZoneCanRunBinarySensor(BinarySensorEntity):
         """Run when entity is added to hass - set up periodic updates."""
         await super().async_added_to_hass()
         
-        # Update every minute to re-check minimum interval condition
+        # Periodic refresh to re-check minimum interval condition
+        # (coordinator recalculates, then we refresh from state)
         self.async_on_remove(
             async_track_time_interval(
                 self.hass,
-                self._periodic_update,
+                self._periodic_refresh,
                 timedelta(minutes=1)
             )
         )
     
     @callback
-    def _periodic_update(self, now: datetime) -> None:
-        """Periodic update to re-check can run conditions."""
-        self.update_can_run()
+    def _periodic_refresh(self, now: datetime) -> None:
+        """Periodic refresh - trigger recalculation via coordinator."""
+        # Import here to avoid circular imports
+        from . import update_runtime_sensors
+        update_runtime_sensors(self.hass, self._entry_id, self._zone_id)
 
     @callback
-    def update_can_run(self) -> None:
-        """Update whether the zone can run and notify HA."""
+    def refresh_from_state(self) -> None:
+        """Refresh entity value from pre-calculated state."""
         if DOMAIN not in self.hass.data or self._entry_id not in self.hass.data[DOMAIN]:
             self._attr_is_on = False
             self.async_write_ha_state()
             return
         
         entry_data = self.hass.data[DOMAIN][self._entry_id]
-        config = entry_data.get("config")
         state = entry_data.get("state")
+        config = entry_data.get("config")
         
-        if not config or not state or self._zone_id not in config.zones:
+        if not state or self._zone_id not in state.zones:
             self._attr_is_on = False
             self.async_write_ha_state()
             return
         
-        zone_config = config.zones[self._zone_id]
         zone_state = state.zones[self._zone_id]
+        zone_config = config.zones.get(self._zone_id) if config else None
         
-        # Check all conditions
-        can_run = True
-        balance = zone_state.soil_moisture_balance
+        # Read pre-calculated value from state
+        self._attr_is_on = zone_state.calculated.can_run
         
-        # 1. Check minimum interval has passed
-        if zone_state.sprinkler_off_time is not None:
-            time_since_off = (datetime.now() - zone_state.sprinkler_off_time).total_seconds()
-            if time_since_off < zone_config.minimum_interval:
-                _LOGGER.debug("Zone %s cannot run: only %.0f seconds since last off (need %.0f)", 
-                             zone_config.name, time_since_off, zone_config.minimum_interval)
-                can_run = False
+        if not zone_state.calculated.can_run and zone_config:
+            _LOGGER.debug("Zone %s cannot run: %s", zone_config.name, zone_state.calculated.reason)
         
-        # 2. Check that calculated runtime meets minimum
-        if balance < 0:  # Only if there's a deficit
-            # Calculate required runtime
-            deficit_mm = abs(balance)
-            runtime_hours = deficit_mm / zone_config.precipitation_rate
-            runtime_seconds = runtime_hours * 3600
-            
-            if runtime_seconds < zone_config.min_runtime:
-                _LOGGER.debug("Zone %s cannot run: calculated runtime %.0f < min %.0f seconds", 
-                             zone_config.name, runtime_seconds, zone_config.min_runtime)
-                can_run = False
-        else:
-            # No deficit, no need to run
-            can_run = False
-        
-        self._attr_is_on = can_run
         self.async_write_ha_state()
+

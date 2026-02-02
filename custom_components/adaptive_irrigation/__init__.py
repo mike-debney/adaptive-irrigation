@@ -24,6 +24,7 @@ from homeassistant.util import dt as dt_util
 from .config import Config, WeatherSensorConfig, ZoneConfig
 from .const import DOMAIN
 from .state import State, WeatherState, ZoneState
+from .calculations import update_zone_calculations
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -770,35 +771,39 @@ def update_zone_number(
 
 
 def update_runtime_sensors(hass: HomeAssistant, entry_id: str, zone_id: str) -> None:
-    """Update runtime and next runtime sensors for a zone (without changing balance)."""
+    """Recalculate zone values and notify entities to refresh from state."""
     if DOMAIN not in hass.data or entry_id not in hass.data[DOMAIN]:
         return
     
-    entities = hass.data[DOMAIN][entry_id].get("entities", {})
-    state = hass.data[DOMAIN][entry_id].get("state")
+    entry_data = hass.data[DOMAIN][entry_id]
+    entities = entry_data.get("entities", {})
+    config = entry_data.get("config")
+    state = entry_data.get("state")
     
-    if not state or zone_id not in state.zones:
+    if not config or not state or zone_id not in state.zones:
         return
     
-    balance = state.zones[zone_id].soil_moisture_balance
+    zone_config = config.zones.get(zone_id)
+    zone_state = state.zones[zone_id]
     
-    # Update required runtime sensor
+    if not zone_config:
+        return
+    
+    # Perform calculation ONCE and store in state
+    update_zone_calculations(hass, config, zone_config, zone_state)
+    
+    # Notify entities to refresh their values from state
     runtime_key = f"runtime_{zone_id}"
     if runtime_key in entities:
-        runtime_sensor = entities[runtime_key]
-        runtime_sensor.update_from_balance(balance)
+        entities[runtime_key].refresh_from_state()
     
-    # Update can run binary sensor
     can_run_key = f"can_run_{zone_id}"
     if can_run_key in entities:
-        can_run_sensor = entities[can_run_key]
-        can_run_sensor.update_can_run()
+        entities[can_run_key].refresh_from_state()
     
-    # Update next runtime sensor
     next_runtime_key = f"next_runtime_{zone_id}"
     if next_runtime_key in entities:
-        next_runtime_sensor = entities[next_runtime_key]
-        next_runtime_sensor.update_next_runtime()
+        entities[next_runtime_key].refresh_from_state()
 
 
 
